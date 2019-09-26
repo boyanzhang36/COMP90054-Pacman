@@ -28,14 +28,14 @@ import game
 from util import nearestPoint
 
 # by KB
-import time
+import operator
 
 #################
 # Team creation #
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'OffensiveReflexAgent', second = 'DefensiveReflexAgent'):
+               first = 'OffensiveReflexAgent', second = 'OffensiveReflexAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -74,7 +74,7 @@ class ReflexCaptureAgent(CaptureAgent):
     # You can profile your evaluation time by uncommenting these lines
     start = time.time()
     values = [self.evaluate(gameState, a) for a in actions]
-    print ('eval time for agent %d: %.4f' % (self.index, time.time() - start))
+    # print ('eval time for agent %d: %.4f' % (self.index, time.time() - start))
 
     maxValue = max(values)
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
@@ -192,31 +192,47 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
 
 
+
+
+
+
+
+
+
+
+
   class KBQLearningAgent(CaptureAgent):
 
-    def __init__(self, **args):
-      CaptureAgent.__init__()
+    def __init__(self, index, timeForComputing = .1, numTraining = 0, epsilon = 0.6, alpha = 0.8, discount = 0.8):
+      CaptureAgent.__init__(self,index,timeForComputing)
 
       #Q-value calculation parameters
-      self.alpha = 0.8 # learning rate
-      self.epsilon = 0.05 # exploration rate
-      self.discount = 0.8 # discount rate
+      self.epsilon = float(epsilon) # exploration rate
+      self.alpha = float(alpha) # learning rate
+      self.discount = float(discount) # discount rate
 
-      self.qvalues = {} # Q-values, key: (gameState,action), value: double
+      self.qvalues = util.Counter()  # Q-values, key: (gameState,action)
 
-      
+      # episode
+      self.numTraining = int(numTraining)
+      self.currentEpisode = 0
+      self.currentEpisodeReward = 0.0
+      self.totalTrainRewards = 0.0
+      self.totalTestRewards = 0.0
+
+
+
     def registerInitialState(self, gameState):
       CaptureAgent.registerInitialState(self, gameState)
+      self.start = gameState.getAgentPosition(self.index)
       
-      startTime = time.time()
-      
-      # TODO: additional info ??
-      self.foodReward = 10
-      self.capsReward = 20
-      self.ghostReward = -10
-      self.mateReward = -2
+      # startTime = time.time()
 
-    
+      # episode start
+      self.lastState = None
+      self.lastAction = None
+      self.currentEpisodeReward = 0.0
+     
 
       # get team mate index
       teamIndex = self.getTeam(gameState)
@@ -225,8 +241,23 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
       else:
         self.teamMateIndex = teamIndex[0]
 
-      
-      
+    
+    #overriding, this func is called on every movement 
+    def observationFunction(self, currentGameState):
+      if self.lastState:
+        # find the score change between each step
+        rewardChange = (currentGameState.getScore() - self.lastState.getScore())
+        # update 1-step Q values
+        self.observeTransition(self.lastState, self.lastAction, currentGameState, rewardChange)
+      return CaptureAgent.observationFunction(self.index, currentGameState)
+
+    def observeTransition(self, gameState, action, nextState, newReward):
+      self.currentEpisodeReward += newReward
+      self.update(gameState, action, nextState,newReward)
+    
+    def update(self, gameState, action, nextState, reward):
+        self.qvalues[(gameState, action)] = (1 - self.alpha) * self.qvalues[(gameState, action)] \
+                    + self.alpha * (reward + self.discount * self.compValueFromQ(nextState))
 
     def compValueFromQ(self, gameState):
       actions = gameState.getLegalActions(self.index)
@@ -236,8 +267,26 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         return max(values)
       else:
         return 0.0
+      
+    def getQValue(self, gameState, action):  
+      return self.qvalues[(gameState,action)]
 
-   
+
+      
+    # Overiding
+    def chooseAction(self, gameState):
+      legalActions = gameState.getLegalActions(self.index)
+      action = None
+      if legalActions:
+        if util.flipCoin(self.epsilon):
+          action = random.choice(legalActions)
+        else:
+          action = self.compActionFromQ(gameState)
+      
+      # save it as the last snapshot
+      self.snapshot(gameState,action)
+      return action
+
     def compActionFromQ(self, gameState): #Compute the best action   
       legalActions = gameState.getLegalActions(self.index)
 
@@ -247,37 +296,46 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
       actionList = {}
       for action in legalActions:
         actionList[action] = self.getQValue(gameState,action)
-        
+      
       sorted_actions = sorted(actionList.items(),key = operator.itemgetter(1))
-      sorted_x.reverse()
+      sorted_actions.reverse()
 
-      return sorted_x[0][0]
+      return sorted_actions[0][0]
 
 
-    def getQValue(self, gameState, action):  #TODO: coord or gameState?
-      return self.qvalues[(gameState,action)]
-
-    
-    def chooseAction(self, gameState):
-      legalActions = gameState.getLegalActions(self.index)
-      action = None
-      if legalActions:
-        if util.flipCoin(self.epsilon):
-          action = random.choice(legalActions)
-        else:
-          action = self.compActionFromQ(gameState)
-      return action
+    def snapshot(self, gameState, action):
+      self.lastState = gameState
+      self.lastAction = action
     
 
-    def update(self, gameState, action, nextState, reward):
-        self.qValues[(gameState, action)] = (1 - self.alpha) * self.qValues[(state, action)] \
-                    + self.alpha * (reward + self.discount * self.computeValueFromQValues(nextState))
-
-   
 
 
+    #overriding, this func is called at the end of each game
+    def final(self, gameState):
+      # update on last movement 
+      rewardChange = (gameState.getScore() - self.lastState.getScore())
+      self.observeTransition(self.lastState, self.lastAction, gameState, rewardChange)
+    
+      #clear observation history list
+      CaptureAgent.final(self, gameState)
+
+      # stop episode
+      self.endOneEpisode()
 
 
+
+
+    def endOneEpisode(self):
+      self.currentEpisode += 1
+      # collect rewards for training/testing
+      if self.currentEpisode < self.numTraining:
+        self.totalTrainRewards += self.currentEpisodeReward
+      else:
+        self.totalTestRewards += self.currentEpisodeReward
+        self.epsilon = 0.0 # no exploration
+        self.alpha = 0.0 # no learning
+
+      
 
 
     def getTeamMateInfo(self,gameState):
