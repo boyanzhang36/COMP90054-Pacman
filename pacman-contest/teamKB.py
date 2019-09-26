@@ -35,7 +35,7 @@ import operator
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'OffensiveReflexAgent', second = 'OffensiveReflexAgent'):
+               first = 'QLearningAgent', second = 'OffensiveReflexAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -196,213 +196,208 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
 
 
 
+class QLearningAgent(CaptureAgent):
+
+  def __init__(self, index, timeForComputing = .1, numTraining = 0, epsilon = 0.6, alpha = 0.8, discount = 0.8):
+    CaptureAgent.__init__(self,index,timeForComputing)
+
+    #Q-value calculation parameters
+    self.epsilon = float(epsilon) # exploration rate
+    self.alpha = float(alpha) # learning rate
+    self.discount = float(discount) # discount rate
+
+    self.qvalues = util.Counter()  # Q-values, key: (gameState,action)
+
+    # episode
+    self.numTraining = int(numTraining)
+    self.currentEpisode = 0
+    self.currentEpisodeReward = 0.0
+    self.totalTrainRewards = 0.0
+    self.totalTestRewards = 0.0
 
 
 
+  def registerInitialState(self, gameState):
+    CaptureAgent.registerInitialState(self, gameState)
+    self.start = gameState.getAgentPosition(self.index)
+    
+    # startTime = time.time()
+
+    # episode start
+    self.lastState = None
+    self.lastAction = None
+    self.currentEpisodeReward = 0.0
+    
+
+    # get team mate index
+    teamIndex = self.getTeam(gameState)
+    if self.index == teamIndex[0]:
+      self.teamMateIndex = teamIndex[1]
+    else:
+      self.teamMateIndex = teamIndex[0]
+
+  
+  #overriding, this func is called on every movement 
+  def observationFunction(self, currentGameState):
+    if self.lastState:
+      # find the score change between each step
+      rewardChange = (currentGameState.getScore() - self.lastState.getScore())
+      # update 1-step Q values
+      self.observeTransition(self.lastState, self.lastAction, currentGameState, rewardChange)
+    return CaptureAgent.observationFunction(self, currentGameState)
+
+  def observeTransition(self, gameState, action, nextState, newReward):
+    self.currentEpisodeReward += newReward
+    self.update(gameState, action, nextState,newReward)
+  
+  def update(self, gameState, action, nextState, reward):
+      self.qvalues[(gameState, action)] = (1 - self.alpha) * self.qvalues[(gameState, action)] \
+                  + self.alpha * (reward + self.discount * self.compValueFromQ(nextState))
+
+  def compValueFromQ(self, gameState):
+    actions = gameState.getLegalActions(self.index)
+    
+    if actions:
+      values = [self.getQValue(gameState,a) for a in actions]
+      return max(values)
+    else:
+      return 0.0
+    
+  def getQValue(self, gameState, action):  
+    return self.qvalues[(gameState,action)]
 
 
-  class KBQLearningAgent(CaptureAgent):
-
-    def __init__(self, index, timeForComputing = .1, numTraining = 0, epsilon = 0.6, alpha = 0.8, discount = 0.8):
-      CaptureAgent.__init__(self,index,timeForComputing)
-
-      #Q-value calculation parameters
-      self.epsilon = float(epsilon) # exploration rate
-      self.alpha = float(alpha) # learning rate
-      self.discount = float(discount) # discount rate
-
-      self.qvalues = util.Counter()  # Q-values, key: (gameState,action)
-
-      # episode
-      self.numTraining = int(numTraining)
-      self.currentEpisode = 0
-      self.currentEpisodeReward = 0.0
-      self.totalTrainRewards = 0.0
-      self.totalTestRewards = 0.0
-
-
-
-    def registerInitialState(self, gameState):
-      CaptureAgent.registerInitialState(self, gameState)
-      self.start = gameState.getAgentPosition(self.index)
-      
-      # startTime = time.time()
-
-      # episode start
-      self.lastState = None
-      self.lastAction = None
-      self.currentEpisodeReward = 0.0
-     
-
-      # get team mate index
-      teamIndex = self.getTeam(gameState)
-      if self.index == teamIndex[0]:
-        self.teamMateIndex = teamIndex[1]
+    
+  # Overiding
+  def chooseAction(self, gameState):
+    legalActions = gameState.getLegalActions(self.index)
+    action = None
+    if legalActions:
+      if util.flipCoin(self.epsilon):
+        action = random.choice(legalActions)
       else:
-        self.teamMateIndex = teamIndex[0]
-
+        action = self.compActionFromQ(gameState)
     
-    #overriding, this func is called on every movement 
-    def observationFunction(self, currentGameState):
-      if self.lastState:
-        # find the score change between each step
-        rewardChange = (currentGameState.getScore() - self.lastState.getScore())
-        # update 1-step Q values
-        self.observeTransition(self.lastState, self.lastAction, currentGameState, rewardChange)
-      return CaptureAgent.observationFunction(self.index, currentGameState)
+    # save it as the last snapshot
+    self.snapshot(gameState,action)
+    return action
 
-    def observeTransition(self, gameState, action, nextState, newReward):
-      self.currentEpisodeReward += newReward
-      self.update(gameState, action, nextState,newReward)
+  def compActionFromQ(self, gameState): #Compute the best action   
+    legalActions = gameState.getLegalActions(self.index)
+
+    if legalActions == None:
+        return None
     
-    def update(self, gameState, action, nextState, reward):
-        self.qvalues[(gameState, action)] = (1 - self.alpha) * self.qvalues[(gameState, action)] \
-                    + self.alpha * (reward + self.discount * self.compValueFromQ(nextState))
+    actionList = {}
+    for action in legalActions:
+      actionList[action] = self.getQValue(gameState,action)
+    
+    sorted_actions = sorted(actionList.items(),key = operator.itemgetter(1))
+    sorted_actions.reverse()
 
-    def compValueFromQ(self, gameState):
-      actions = gameState.getLegalActions(self.index)
-      
-      if actions:
-        values = [self.getQValue(gameState,a) for a in actions]
-        return max(values)
-      else:
-        return 0.0
-      
-    def getQValue(self, gameState, action):  
-      return self.qvalues[(gameState,action)]
+    return sorted_actions[0][0]
 
 
-      
-    # Overiding
-    def chooseAction(self, gameState):
-      legalActions = gameState.getLegalActions(self.index)
-      action = None
-      if legalActions:
-        if util.flipCoin(self.epsilon):
-          action = random.choice(legalActions)
-        else:
-          action = self.compActionFromQ(gameState)
-      
-      # save it as the last snapshot
-      self.snapshot(gameState,action)
-      return action
-
-    def compActionFromQ(self, gameState): #Compute the best action   
-      legalActions = gameState.getLegalActions(self.index)
-
-      if legalActions == None:
-         return None
-      
-      actionList = {}
-      for action in legalActions:
-        actionList[action] = self.getQValue(gameState,action)
-      
-      sorted_actions = sorted(actionList.items(),key = operator.itemgetter(1))
-      sorted_actions.reverse()
-
-      return sorted_actions[0][0]
+  def snapshot(self, gameState, action):
+    self.lastState = gameState
+    self.lastAction = action
+  
 
 
-    def snapshot(self, gameState, action):
-      self.lastState = gameState
-      self.lastAction = action
+
+  #overriding, this func is called at the end of each game
+  def final(self, gameState):
+    # update on last movement 
+    rewardChange = (gameState.getScore() - self.lastState.getScore())
+    self.observeTransition(self.lastState, self.lastAction, gameState, rewardChange)
+  
+    #clear observation history list
+    CaptureAgent.final(self, gameState)
+
+    # stop episode
+    self.endOneEpisode()
+
+
+
+
+  def endOneEpisode(self):
+    self.currentEpisode += 1
+    # collect rewards for training/testing
+    if self.currentEpisode < self.numTraining:
+      self.totalTrainRewards += self.currentEpisodeReward
+    else:
+      self.totalTestRewards += self.currentEpisodeReward
+      self.epsilon = 0.0 # no exploration
+      self.alpha = 0.0 # no learning
+
     
 
 
-
-    #overriding, this func is called at the end of each game
-    def final(self, gameState):
-      # update on last movement 
-      rewardChange = (gameState.getScore() - self.lastState.getScore())
-      self.observeTransition(self.lastState, self.lastAction, gameState, rewardChange)
+  def getTeamMateInfo(self,gameState):
+          # get team mate index
+    teamIndex = self.getTeam(gameState)
+    teamMateIndex = teamIndex[0]
+    if self.index == teamIndex[0]:
+      teamMateIndex = teamIndex[1]
     
-      #clear observation history list
-      CaptureAgent.final(self, gameState)
+    teamMateLocation = gameState.getAgentPosition(teamMateIndex)
+    return teamMateIndex, teamMateLocation
 
-      # stop episode
-      self.endOneEpisode()
-
-
-
-
-    def endOneEpisode(self):
-      self.currentEpisode += 1
-      # collect rewards for training/testing
-      if self.currentEpisode < self.numTraining:
-        self.totalTrainRewards += self.currentEpisodeReward
-      else:
-        self.totalTestRewards += self.currentEpisodeReward
-        self.epsilon = 0.0 # no exploration
-        self.alpha = 0.0 # no learning
-
+  def getPossibleActions(position, walls):
+    possible = []
+    x, y = position
+    for dir, vec in Actions._directionsAsList:
+        dx, dy = vec
+        next_y = y + dy
+        next_x = x + dx
+        if not walls[next_x][next_y]: possible.append(dir)
+    return possible
       
 
 
-    def getTeamMateInfo(self,gameState):
-            # get team mate index
-      teamIndex = self.getTeam(gameState)
-      teamMateIndex = teamIndex[0]
-      if self.index == teamIndex[0]:
-        teamMateIndex = teamIndex[1]
-     
-      teamMateLocation = gameState.getAgentPosition(teamMateIndex)
-      return teamMateIndex, teamMateLocation
 
-    def getPossibleActions(position, walls):
-      possible = []
-      x, y = position
-      for dir, vec in Actions._directionsAsList:
-          dx, dy = vec
-          next_y = y + dy
-          next_x = x + dx
-          if not walls[next_x][next_y]: possible.append(dir)
-      return possible
-       
- 
-
-
-      
-      
+    
+    
 
 # # get probability distribution
-      # if self.index == teamIndex[0]:
-      #   self.directionProb = [0.3, 0.4, 0.2, 0.1] # north, east, south, west
-      # else:
-      #   self.directionProb = [0.2, 0.4, 0.3, 0.1] # north, east, south, west
+    # if self.index == teamIndex[0]:
+    #   self.directionProb = [0.3, 0.4, 0.2, 0.1] # north, east, south, west
+    # else:
+    #   self.directionProb = [0.2, 0.4, 0.3, 0.1] # north, east, south, west
 
-      # # set initial Q values for the first 15 seconds
-      # self.startMap = initializeMap(gameState)
+    # # set initial Q values for the first 15 seconds
+    # self.startMap = initializeMap(gameState)
 
-      # # iterate across all grid cell to calculate Q values
-      # walls = gameState.getWalls()
-      # while time.time() - startTime < 14:
-      #   for i in len(startMap):
-      #     for j in len(startMap[0]):
-      #       values = []
-      #       loc = (i,j)
-            
-      #       # for each possible action
-      #       for action in getLegalActions(loc, walls):
-      #         values.append(computeQValue(loc,action))
-            
-      #       next_values[loc] = max(values)
+    # # iterate across all grid cell to calculate Q values
+    # walls = gameState.getWalls()
+    # while time.time() - startTime < 14:
+    #   for i in len(startMap):
+    #     for j in len(startMap[0]):
+    #       values = []
+    #       loc = (i,j)
+          
+    #       # for each possible action
+    #       for action in getLegalActions(loc, walls):
+    #         values.append(computeQValue(loc,action))
+          
+    #       next_values[loc] = max(values)
 
-    
+  
 
-      # def initializeMap(self, gameState):
-      #   w= self.gameState.data.layout.mapWidth
-      #   l = len(self.gameState.data.layout)
-      #   map =  [[0 for col in range(w)] for row in range(l)]
+    # def initializeMap(self, gameState):
+    #   w= self.gameState.data.layout.mapWidth
+    #   l = len(self.gameState.data.layout)
+    #   map =  [[0 for col in range(w)] for row in range(l)]
 
-      #   # assign intial reward
-      #   foods = self.getFood(gameState)
-      #   capsules = self.getCapsules(gameState)
-      #   for i in l:
-      #     for j in w:
-      #       if food[i][j]:
-      #         map[i][j] = self.foodReward
-      #       if capsules[i][j]:
-      #         map[i][j] = self.capsReward
-      #   return map
+    #   # assign intial reward
+    #   foods = self.getFood(gameState)
+    #   capsules = self.getCapsules(gameState)
+    #   for i in l:
+    #     for j in w:
+    #       if food[i][j]:
+    #         map[i][j] = self.foodReward
+    #       if capsules[i][j]:
+    #         map[i][j] = self.capsReward
+    #   return map
 
 
