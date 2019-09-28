@@ -29,6 +29,7 @@ from util import nearestPoint
 
 # by KB
 import operator
+from game import Actions
 
 #################
 # Team creation #
@@ -63,6 +64,21 @@ class ReflexCaptureAgent(CaptureAgent):
  
   def registerInitialState(self, gameState):
     self.start = gameState.getAgentPosition(self.index)
+
+    # get team mate index
+    teamIndex = self.getTeam(gameState)
+    if self.index == teamIndex[0]:
+      self.teamMateIndex = teamIndex[1]
+    else:
+      self.teamMateIndex = teamIndex[0]
+
+    # get opponent index
+    if self.red:
+      self.opponentIndexes = gameState.getBlueTeamIndices()
+    else:
+      self.opponentIndexes = gameState.getRedTeamIndices()
+
+
     CaptureAgent.registerInitialState(self, gameState)
 
   def chooseAction(self, gameState):
@@ -190,11 +206,6 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
 
   def getWeights(self, gameState, action):
     return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
-
-
-
-
-
 
 class QLearningAgent(CaptureAgent):
 
@@ -355,9 +366,273 @@ class QLearningAgent(CaptureAgent):
       
 
 
+class OurAgent(ReflexCaptureAgent):
 
+    def registerInitialState(self, gameState):
+      self.start = gameState.getAgentPosition(self.index)
+      CaptureAgent.registerInitialState(self, gameState)
+
+      start_x, start_y = self.start  # TODO: Assuming only west vs east layout?
+      if start_x < gameState.data.mapWidth/2:
+        self.homeDirection = Directions.WEST  
+        self.foodDirection = Directions.EAST
+      else:
+        self.homeDirection = Directions.EAST
+        self.foodDirection = Directions.WEST
     
+    def chooseAction(self, gameState):
+
+      answer = Directions.STOP
+
+      # Scenario - i am scared, then scape from ghost and not home
+      if self.iScared(gameState):
+        return self.escapeBack(gameState, false)
+
+
+
+      # Scenario - eat capsule 
+      elif not self.myCapsEaten(gameState): 
+         
+        # ghost nearby?
+        if self.whoChaseMeNearby(gameState) is not None:
+          return self.escapeBack(gameState,false) # scape but not go home
+
+        # player 1 to eat capsule, player 2 to eat food
+        if not self.opponentScaredTimeUtil[0]:
+          if self.index == teamIndex[0]: # it is Player 1 
+            caps = self.getMyCap(gameState)
+            pathToCap = self.bfs(gameState,caps[0])
+            return pathToCap[0]
+          else: 
+            pathToFood = self.pathToClosestFood(gameState)
+            return pathToFood[0]
+
+
+
+      # Scenario -  both player eat food as many as possible during capsule time
+      elif self.myCapsEaten(gameState) \
+        and self.opponentScaredTimeUtil[0] \
+          and self.opponentScaredTimeUtil[1] > 3:
+        pathToFood = self.pathToClosestFood(gameState)
+        return pathToFood[0]
+
+
+
+      # Scenario - deposite food 3 sec before their scared time ends 
+      elif self.myCapsEaten(gameState) \
+        and self.opponentScaredTimeUtil[0] \
+          and self.opponentScaredTimeUtil[1] <= 3:
+        return self.escapeBack(gameState, true)
+  
+
+
+      #Scenario  - scored outnumber others by 10 after capsule
+      elif self.myCapsEaten(gameState)\
+        and not self.opponentScaredTimeUtil(gameState)[0]\
+          and self.getScore() > 10:
+        # guard my foods 
+        if gameState.getAgentState(self.index).isPacman: # go back home
+          return escapeBack(gameState)
+
+        else:
+          if self.whoEatMyFoodNearby(gameState) is not None: 
+            dist,loc,index  = self.whoEatMyFoodNearby(gameState)[0]
+            pathToOppPac = bfs(gameState,loc)
+            return pathToOppPac[0]
+          else:
+            if self.whereAreLostFoods(gameState) is not None:
+              pathToOppPac = bfs(gameState, self.whereAreLostFoods(gameState)[0])
+              return pathToOppPac[0]
+            else:
+              return Directions.STOP  # TODO: re-think of it
+      
+
+
+      #Scenario  - scored outnumber others by < 10 after capsule
+      elif self.myCapsEaten(gameState) \
+        and not self.opponentScaredTimeUtil(gameState)[0]\
+          and self.getScore() < 10:
+        pathToFood = self.pathToClosestFood(gameState)
+        return pathToFood[0]
+            
+            
+        
+    def opponentScaredTimeUtil(self, gameState):
+      theyScared = False
+      timeLeft = gameState.getAgentState(self.opponentIndexes[0]).scaredTimer
+      if timeLeft > 0:
+        theyScared = True
+      return (theyScared, timeLeft)
+
+    def iScared(self, gameState):
+      if gameState.getAgentState(self.index).scaredTimer >0:
+        return True
+      else: 
+        return False
+
+    def myCapsEaten(self, gameState):
+      if len(self.getMyCap(gameState)) > 0:
+        return False
+      else
+        return True
+
+
+    # return a list of the capsules we can eat
+    def getMyCap(self, gameState):
+      if self.red: 
+        return gameState.getRedCapsules()
+      else:
+        return gameState.getBlueCapsules()
+
+    def getTeamMatePosition(self):
+      teamIndex = self.getTeam(gameState)
+      if (self.index == teamIndex[0]):
+          teamMatePos=gameState.getAgentState(teamIndex[1]).getPosition()
+      else:
+          teamMatePos = gameState.getAgentState(teamIndex[0]).getPosition()
+      return teamMatePos
     
+    def whoEatMyFoodNearby(self, gameState):
+      opponentStates = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+      pacmans = [a for a in opponentStates if a.isPacman and a.getPosition() != None] # check postion to find the closest
+      if len(pacmans) < 1:
+        return None
+      
+      myPos = gameState.getAgentPosition(self.index)
+      answer = [(self.getMazeDistance(myPos,a.getPosition()), a.getPosition(), a) for a in pacmans] # [(dis, pos, index)]e.g. [(6,(2,2),1),(12,(4,5),3)]
+      answer.sort() # smallest first
+      return answer
+    
+    def whoChaseMeNearby(self, gameState):
+      if gameState.getAgentState(self.index).isPacman:  # I am eating others' food
+        opponentStates = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+        whoChaseMe = [a for a in opponentStates if not a.isPacman and a.getPosition() != None]
+
+        myPos = gameState.getAgentPosition(self.index)
+        answer = [(self.getMazeDistance(myPos,a.getPosition()),a) for a in whoChaseMe] # [(componnet index, dist)]
+        answer.sort() # smallest dist first, e.g. [(6,1),(12,3)]
+        return answer
+      else:
+        return None
+    
+    def whereAreLostFoods(self):
+      lastState = self.getPreviousObservation()
+      currentState = self.getCurrentObservation()
+      oldFoods = self.getFoodYouAreDefending(lastState).aslist()
+      newFoods = self.getFoodYouAreDefending(currentState).aslist()
+      foodGone = list(set(oldFoods).difference(set(newFoods)))
+      return foodGone # if no missing then return None
+                
+    def bfs(self,gameState,endLoc): #bfs
+        
+      toBeVisited = util.Queue()
+      visited = []
+
+      # add the initial state and current empty path to the openlist
+      startLoc = gameState.getAgentPosition(self.index)
+      toBeVisited.push((startLoc, []))
+
+      while toBeVisited:
+        # pop the most recently pushed item
+        currentItem = toBeVisited.pop()
+        currentLoc = currentItem[0]
+        pathFromStart = currentItem[1]
+        if currentLoc == endLoc:
+          return pathFromStart
+        # update visited list
+        visited.append(currentLoc)
+        # explore the open list of current node
+        walls = gameState.getWalls()
+        x, y = currentLoc
+        for dir, vec in Actions._directionsAsList:
+          dx, dy = vec
+          next_x = x + dx
+          if next_x < 0 or next_x == walls.width: continue
+          next_y = y + dy
+          if next_y < 0 or next_y == walls.height: continue
+          if not walls[next_x][next_y]: 
+            newLoc = (next_x,next_y)
+            nextDirection = dir
+
+          if newLoc not in visited:
+            toBeVisited.push((newLoc,pathFromStart+[nextDirection]))
+
+    def closestFoodPos(self, gameState):
+      myPos = gameState.getAgentPosition(self.index)
+
+      dists = [self.getMazeDistance(myPos,food) for food in self.getFood(gameState)]
+      closestFood = [food for food in self.getFood(gameState) if self.getMazeDistance(myPos,food) == min(dists)]
+      return random.choice(closestFood)
+      
+    def pathToClosestFood(self, gameState):
+      food = self.closestFoodPos(gameState)
+      path = self.bfs(gameState,food)
+      return path # return ["north", "south"]
+    
+    def escapeBack(self, gameState, back = True):
+
+      # find the direction with the farest 
+      actions = gameState.getLegalActions(self.index)
+
+      # check how many ghost approaching
+      ghosts = self.whoChaseMeNearby(gameState)
+      if ghosts is None:
+        return random.choice(actions)
+      else:
+        ghost = ghosts[0] # TODO how to handle multiple ghosts
+      
+      maxDist = 0
+      farestAction = []
+
+      for action in actions:
+        successor = gameState.getSuccessor(self.index, action)
+        dist = successor.getMazeDistance(self.getPosition(), ghost)
+        if dist > =  maxDist:
+          maxDist = dist
+          farestAction.append(action)
+      
+
+      # west/east vs north/south
+      if len(farestAction) == 1:
+        return farestAction[0]
+      else:
+        if back:  # escape back to 
+          if self.homeDirection in farestAction: 
+            return self.homeDirection
+          elif self.foodDirection in farestAction:
+            farestAction.remove(self.foodDirection)
+            return random.choice(farestAction)
+          else: 
+            return random.choice(farestAction)
+        else:  # escape to get more food
+          if self.foodDirection in farestAction: 
+            return self.foodDirection
+          elif self.homeDirection in farestAction:
+            farestAction.remove(self.homeDirection)
+            return random.choice(farestAction)
+          else:
+            return random.choice(farestAction)
+          
+    def isDeadend(self, gameState, action):
+      
+      successorState = gameState.generateSuccessor(self.index, action)
+      actions = successorState.getLegalActions(self.index)
+      if len(actions) = 1:
+        return True
+      return false
+
+    def isCorner(self, gameState, action):
+      successorState = gameState.generateSuccessor(self.index, action)
+      actions = successorState.getLegalActions(self.index)
+      if len(actions) = 2:
+        return True
+      return false
+
+
+
+
+
+
 
 # # get probability distribution
     # if self.index == teamIndex[0]:

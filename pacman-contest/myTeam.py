@@ -214,13 +214,13 @@ class OurAgent(ReflexCaptureAgent):
 
     def whoChaseMeNearby(self, gameState):
         #if gameState.getAgentState(self.index).isPacman:  # I am eating others' food
-            opponentStates = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
-            whoChaseMe = [a for a in opponentStates if not a.isPacman and a.getPosition() != None]
+        opponentStates = [gameState.getAgentState(i) for i in self.getOpponents(gameState)]
+        whoChaseMe = [a for a in opponentStates if not a.isPacman and a.getPosition() != None]
 
-            myPos = gameState.getAgentPosition(self.index)
-            answer = [(a, self.getMazeDistance(myPos,a.getPosition())) for a in whoChaseMe] # e.g. [(1,6),(2,12)]
-            answer.sort() # smallest first
-            return answer
+        myPos = gameState.getAgentPosition(self.index)
+        answer = [(a, self.getMazeDistance(myPos,a.getPosition())) for a in whoChaseMe] # e.g. [(1,6),(2,12)]
+        answer.sort() # smallest first
+        return answer
         #else:
             #return None
     
