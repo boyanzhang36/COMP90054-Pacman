@@ -366,7 +366,7 @@ class QLearningAgent(CaptureAgent):
       
 
 
-class OurAgent(ReflexCaptureAgent):
+class KBAgent(ReflexCaptureAgent):
 
     def registerInitialState(self, gameState):
       self.start = gameState.getAgentPosition(self.index)
@@ -455,7 +455,7 @@ class OurAgent(ReflexCaptureAgent):
         pathToFood = self.pathToClosestFood(gameState)
         return pathToFood[0]
             
-            
+
         
     def opponentScaredTimeUtil(self, gameState):
       theyScared = False

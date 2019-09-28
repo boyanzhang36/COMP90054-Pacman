@@ -456,7 +456,7 @@ class AgentRules:
     agentState = state.getAgentState(agentIndex)
     conf = agentState.configuration
     possibleActions = Actions.getPossibleActions( conf, state.data.layout.walls )
-    return AgentRules.getLegalActions( agentState, possibleActions)
+    return AgentRules.filterForAllowedActions( agentState, possibleActions)
   getLegalActions = staticmethod( getLegalActions )
 
   def filterForAllowedActions(agentState, possibleActions):
