@@ -230,17 +230,31 @@ class QLearningAgent(CaptureAgent):
 
 
 
+
+
   def registerInitialState(self, gameState):
+    # print("gameState at Inital:", gameState)
     CaptureAgent.registerInitialState(self, gameState)
     self.start = gameState.getAgentPosition(self.index)
     
     # startTime = time.time()
 
     # episode start
-    if self.currentEpisode == 0:
-      self.lastState = None
-      self.lastAction = None
-      self.currentEpisodeReward = 0.0      
+    self.lastState = None
+    self.lastAction = None
+    self.currentEpisodeReward = 0.0     
+
+    # if self.currentEpisode == 0:
+    #   self.thisEpisodeFirstGameState = gameState
+    #   self.lastEpisodeLastGameState = None
+    # else:
+    #   if gameState == self.thisEpisodeFirstGameState:
+    #     print("game state consistent across episode")
+    #   else:
+    #     print("game state NOT consistent across episode")
+    #     print("last episode of last game state:", self.thisEpisodeFirstGameState)
+    #     print("first episode of this game state:", gameState)
+
     
 
     # get team mate index
@@ -255,8 +269,8 @@ class QLearningAgent(CaptureAgent):
   def observationFunction(self, currentGameState):
     if self.lastState:
       # find the score change between each step
-      # rewardChange = (currentGameState.getScore() - self.lastState.getScore())
-      rewardChange = 1
+      rewardChange = (currentGameState.getScore() - self.lastState.getScore())
+      # rewardChange = 1
       # update 1-step Q values
       self.observeTransition(self.lastState, self.lastAction, currentGameState, rewardChange)
     return CaptureAgent.observationFunction(self, currentGameState)
@@ -331,6 +345,12 @@ class QLearningAgent(CaptureAgent):
 
     # stop episode
     self.endOneEpisode()
+
+    print(gameState)
+    
+    # self.lastEpisodeLastGameState =gameState
+
+
 
 
 

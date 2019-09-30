@@ -1,4 +1,5 @@
 import time
+import util
 # a = time.time()
 
 # time.sleep(5)
@@ -91,12 +92,12 @@ import time
 # print(c)
 
 
-a = [(20,(1,1),"a"),(3,(2,2),"b"),(2,(3,3),"c")]
-a.sort()
-print(a)
-print(min(a))
+# a = [(20,(1,1),"a"),(3,(2,2),"b"),(2,(3,3),"c")]
+# a.sort()
+# print(a)
+# print(min(a))
 
-# a = 1
+# # a = 1
 # b = 2
 
 # if a < 10 \
@@ -112,4 +113,34 @@ print(min(a))
 # if len(a ) < 1:
 #     print("None") 
 
+class Test:
+    def __init__(self, text):
+        self.text = text
 
+    def getT(self):
+        return self.text
+
+# a = Test("apple")
+
+# print(a)
+
+# b = Test("apple")
+# print(b)
+
+
+# f1 = open('test2.py','r')
+import pickle
+
+a = util.Counter()
+a[(Test("apple"), "A")] = 1
+a[(Test("orange"),"B")] = 2
+# print(a)
+# print(repr(a))
+
+with open('test3.txt', 'wb') as handle:
+    pickle.dump(a,handle)
+
+with open(['test3.txt','rb']) as handle:
+    b = pickle.loads(handle.read())
+
+print(a ==b)
