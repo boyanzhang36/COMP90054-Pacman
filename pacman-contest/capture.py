@@ -1035,7 +1035,7 @@ def replayGame( layout, agents, actions, display, length, redTeamName, blueTeamN
     display.finish()
 
 
-def runGames( layouts, agents, display, length, numGames, record, numTraining, redTeamName, blueTeamName, muteAgents=False, catchExceptions=False, delay_step=0):
+def runGames( layouts, agents, display, length, numGames, record, numTraining , redTeamName, blueTeamName, muteAgents=False, catchExceptions=False, delay_step=0):
 
   rules = CaptureRules()
   games = []
