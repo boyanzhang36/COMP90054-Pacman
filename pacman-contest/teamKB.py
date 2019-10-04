@@ -354,7 +354,7 @@ class QLearningAgent(CaptureAgent):
     teamMateLocation = gameState.getAgentPosition(teamMateIndex)
     return teamMateIndex, teamMateLocation
 
-  def getPossibleActions(position, walls):
+  def getPossibleActions(self, position, walls):
     possible = []
     x, y = position
     for dir, vec in Actions._directionsAsList:
@@ -386,7 +386,7 @@ class KBAgent(ReflexCaptureAgent):
 
       # Scenario - i am scared, then scape from ghost and not home
       if self.iScared(gameState):
-        return self.escapeBack(gameState, false)
+        return self.escapeBack(gameState, False)
 
 
 
@@ -395,10 +395,10 @@ class KBAgent(ReflexCaptureAgent):
          
         # ghost nearby?
         if self.whoChaseMeNearby(gameState) is not None:
-          return self.escapeBack(gameState,false) # scape but not go home
+          return self.escapeBack(gameState,False) # scape but not go home
 
         # player 1 to eat capsule, player 2 to eat food
-        if not self.opponentScaredTimeUtil[0]:
+        if not self.opponentScaredTimeUtil(gameState)[0]:
           if self.index == teamIndex[0]: # it is Player 1 
             caps = self.getMyCap(gameState)
             pathToCap = self.bfs(gameState,caps[0])
@@ -411,8 +411,8 @@ class KBAgent(ReflexCaptureAgent):
 
       # Scenario -  both player eat food as many as possible during capsule time
       elif self.myCapsEaten(gameState) \
-        and self.opponentScaredTimeUtil[0] \
-          and self.opponentScaredTimeUtil[1] > 3:
+        and self.opponentScaredTimeUtil(gameState)[0] \
+          and self.opponentScaredTimeUtil(gameState)[1] > 3:
         pathToFood = self.pathToClosestFood(gameState)
         return pathToFood[0]
 
@@ -422,7 +422,7 @@ class KBAgent(ReflexCaptureAgent):
       elif self.myCapsEaten(gameState) \
         and self.opponentScaredTimeUtil[0] \
           and self.opponentScaredTimeUtil[1] <= 3:
-        return self.escapeBack(gameState, true)
+        return self.escapeBack(gameState, True)
   
 
 
@@ -451,7 +451,7 @@ class KBAgent(ReflexCaptureAgent):
       #Scenario  - scored outnumber others by < 10 after capsule
       elif self.myCapsEaten(gameState) \
         and not self.opponentScaredTimeUtil(gameState)[0]\
-          and self.getScore() < 10:
+          and self.getScore(gameState) < 10:
         pathToFood = self.pathToClosestFood(gameState)
         return pathToFood[0]
             
@@ -473,7 +473,7 @@ class KBAgent(ReflexCaptureAgent):
     def myCapsEaten(self, gameState):
       if len(self.getMyCap(gameState)) > 0:
         return False
-      else
+      else:
         return True
 
 
@@ -484,10 +484,10 @@ class KBAgent(ReflexCaptureAgent):
       else:
         return gameState.getBlueCapsules()
 
-    def getTeamMatePosition(self):
+    def getTeamMatePosition(self, gameState):
       teamIndex = self.getTeam(gameState)
       if (self.index == teamIndex[0]):
-          teamMatePos=gameState.getAgentState(teamIndex[1]).getPosition()
+          teamMatePos = gameState.getAgentState(teamIndex[1]).getPosition()
       else:
           teamMatePos = gameState.getAgentState(teamIndex[0]).getPosition()
       return teamMatePos
@@ -587,7 +587,7 @@ class KBAgent(ReflexCaptureAgent):
       for action in actions:
         successor = gameState.getSuccessor(self.index, action)
         dist = successor.getMazeDistance(self.getPosition(), ghost)
-        if dist > =  maxDist:
+        if dist >=  maxDist:
           maxDist = dist
           farestAction.append(action)
       
@@ -617,16 +617,16 @@ class KBAgent(ReflexCaptureAgent):
       
       successorState = gameState.generateSuccessor(self.index, action)
       actions = successorState.getLegalActions(self.index)
-      if len(actions) = 1:
+      if len(actions) == 1:
         return True
-      return false
+      return False
 
     def isCorner(self, gameState, action):
       successorState = gameState.generateSuccessor(self.index, action)
       actions = successorState.getLegalActions(self.index)
-      if len(actions) = 2:
+      if len(actions) == 2:
         return True
-      return false
+      return False
 
 
 
