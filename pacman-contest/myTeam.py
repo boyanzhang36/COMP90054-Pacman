@@ -201,10 +201,10 @@ class BaseAgent(ReflexCaptureAgent):
 
         if self.index == teamIndex[0]:
             teamMateIndex = teamIndex[1]
-            eneDist = 3
+            eneDist = 4
         else:
             teamMateIndex = teamIndex[0]
-            eneDist = 2
+            eneDist = 3
 
         if len(oppositeGhost) > 0 and oppositeGhost[0].scaredTimer <= 1:
             if (not oppositeGhost[0].isPacman) and (not myState.isPacman) and self.getMazeDistance(
