@@ -36,7 +36,7 @@ from game import Actions
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'QLearningAgent', second = 'OffensiveReflexAgent'):
+               first = 'QLearningAgent', second = 'OffensiveReflexAgent', numTraining = 3):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -51,6 +51,8 @@ def createTeam(firstIndex, secondIndex, isRed,
   any extra arguments, so you should make sure that the default
   behavior is what you want for the nightly contest..
   """
+
+  
   return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
 ##########
@@ -209,7 +211,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
 
 class QLearningAgent(CaptureAgent):
 
-  def __init__(self, index, timeForComputing = .1, numTraining = 0, epsilon = 0.6, alpha = 0.8, discount = 0.8):
+  def __init__(self, index, timeForComputing = .1, numTraining = 2, epsilon = 0.6, alpha = 0.8, discount = 0.8):
     CaptureAgent.__init__(self,index,timeForComputing)
 
     #Q-value calculation parameters
@@ -228,7 +230,10 @@ class QLearningAgent(CaptureAgent):
 
 
 
+
+
   def registerInitialState(self, gameState):
+    # print("gameState at Inital:", gameState)
     CaptureAgent.registerInitialState(self, gameState)
     self.start = gameState.getAgentPosition(self.index)
     
@@ -237,7 +242,19 @@ class QLearningAgent(CaptureAgent):
     # episode start
     self.lastState = None
     self.lastAction = None
-    self.currentEpisodeReward = 0.0
+    self.currentEpisodeReward = 0.0     
+
+    # if self.currentEpisode == 0:
+    #   self.thisEpisodeFirstGameState = gameState
+    #   self.lastEpisodeLastGameState = None
+    # else:
+    #   if gameState == self.thisEpisodeFirstGameState:
+    #     print("game state consistent across episode")
+    #   else:
+    #     print("game state NOT consistent across episode")
+    #     print("last episode of last game state:", self.thisEpisodeFirstGameState)
+    #     print("first episode of this game state:", gameState)
+
     
 
     # get team mate index
@@ -253,6 +270,7 @@ class QLearningAgent(CaptureAgent):
     if self.lastState:
       # find the score change between each step
       rewardChange = (currentGameState.getScore() - self.lastState.getScore())
+      # rewardChange = 1
       # update 1-step Q values
       self.observeTransition(self.lastState, self.lastAction, currentGameState, rewardChange)
     return CaptureAgent.observationFunction(self, currentGameState)
@@ -328,6 +346,16 @@ class QLearningAgent(CaptureAgent):
     # stop episode
     self.endOneEpisode()
 
+    print(gameState)
+    
+    # self.lastEpisodeLastGameState =gameState
+
+
+
+
+
+
+
 
 
 
@@ -366,14 +394,24 @@ class QLearningAgent(CaptureAgent):
       
 
 
+
+
+
+
+
+
+
+
+
+
 class KBAgent(ReflexCaptureAgent):
 
     def registerInitialState(self, gameState):
       self.start = gameState.getAgentPosition(self.index)
-      CaptureAgent.registerInitialState(self, gameState)
+      ReflexCaptureAgent.registerInitialState(self, gameState)
 
       start_x, start_y = self.start  # TODO: Assuming only west vs east layout?
-      if start_x < gameState.data.mapWidth/2:
+      if start_x < gameState.data.layout.width/2:
         self.homeDirection = Directions.WEST  
         self.foodDirection = Directions.EAST
       else:
@@ -382,7 +420,6 @@ class KBAgent(ReflexCaptureAgent):
     
     def chooseAction(self, gameState):
 
-      answer = Directions.STOP
 
       # Scenario - i am scared, then scape from ghost and not home
       if self.iScared(gameState):
@@ -394,18 +431,17 @@ class KBAgent(ReflexCaptureAgent):
       elif not self.myCapsEaten(gameState): 
          
         # ghost nearby?
-        if self.whoChaseMeNearby(gameState) is not None:
+        if gameState.getAgentState(self.index).isPacman and self.whoChaseMeNearby(gameState) is not None:
           return self.escapeBack(gameState,False) # scape but not go home
 
         # player 1 to eat capsule, player 2 to eat food
         if not self.opponentScaredTimeUtil(gameState)[0]:
-          if self.index == teamIndex[0]: # it is Player 1 
+          if self.index == self.getTeam(gameState)[0]: # it is Player 1 
             caps = self.getMyCap(gameState)
-            pathToCap = self.bfs(gameState,caps[0])
-            return pathToCap[0]
+            # print("P1's capsule", caps[0])
+            return self.headTo(gameState,caps[0])
           else: 
-            pathToFood = self.pathToClosestFood(gameState)
-            return pathToFood[0]
+            return self.actionToClosestFood(gameState)
 
 
 
@@ -413,15 +449,14 @@ class KBAgent(ReflexCaptureAgent):
       elif self.myCapsEaten(gameState) \
         and self.opponentScaredTimeUtil(gameState)[0] \
           and self.opponentScaredTimeUtil(gameState)[1] > 3:
-        pathToFood = self.pathToClosestFood(gameState)
-        return pathToFood[0]
+        return self.actionToClosestFood(gameState)
 
 
 
       # Scenario - deposite food 3 sec before their scared time ends 
       elif self.myCapsEaten(gameState) \
-        and self.opponentScaredTimeUtil[0] \
-          and self.opponentScaredTimeUtil[1] <= 3:
+        and self.opponentScaredTimeUtil(gameState)[0] \
+          and self.opponentScaredTimeUtil(gameState)[1] <= 3:
         return self.escapeBack(gameState, True)
   
 
@@ -429,20 +464,18 @@ class KBAgent(ReflexCaptureAgent):
       #Scenario  - scored outnumber others by 10 after capsule
       elif self.myCapsEaten(gameState)\
         and not self.opponentScaredTimeUtil(gameState)[0]\
-          and self.getScore() > 10:
+          and self.getScore(gameState) > 10:
         # guard my foods 
         if gameState.getAgentState(self.index).isPacman: # go back home
-          return escapeBack(gameState)
+          return self.escapeBack(gameState)
 
         else:
           if self.whoEatMyFoodNearby(gameState) is not None: 
             dist,loc,index  = self.whoEatMyFoodNearby(gameState)[0]
-            pathToOppPac = bfs(gameState,loc)
-            return pathToOppPac[0]
+            return self.headTo(gameState,loc)
           else:
-            if self.whereAreLostFoods(gameState) is not None:
-              pathToOppPac = bfs(gameState, self.whereAreLostFoods(gameState)[0])
-              return pathToOppPac[0]
+            if self.whereAreLostFoods() is not None:
+              return self.headTo(gameState,self.whereAreLostFoods()[0])
             else:
               return Directions.STOP  # TODO: re-think of it
       
@@ -452,8 +485,7 @@ class KBAgent(ReflexCaptureAgent):
       elif self.myCapsEaten(gameState) \
         and not self.opponentScaredTimeUtil(gameState)[0]\
           and self.getScore(gameState) < 10:
-        pathToFood = self.pathToClosestFood(gameState)
-        return pathToFood[0]
+        return self.actionToClosestFood(gameState)
             
 
         
@@ -480,14 +512,14 @@ class KBAgent(ReflexCaptureAgent):
     # return a list of the capsules we can eat
     def getMyCap(self, gameState):
       if self.red: 
-        return gameState.getRedCapsules()
-      else:
         return gameState.getBlueCapsules()
+      else:
+        return gameState.getRedCapsules()
 
     def getTeamMatePosition(self, gameState):
       teamIndex = self.getTeam(gameState)
       if (self.index == teamIndex[0]):
-          teamMatePos = gameState.getAgentState(teamIndex[1]).getPosition()
+          teamMatePos=gameState.getAgentState(teamIndex[1]).getPosition()
       else:
           teamMatePos = gameState.getAgentState(teamIndex[0]).getPosition()
       return teamMatePos
@@ -509,7 +541,7 @@ class KBAgent(ReflexCaptureAgent):
         whoChaseMe = [a for a in opponentStates if not a.isPacman and a.getPosition() != None]
 
         myPos = gameState.getAgentPosition(self.index)
-        answer = [(self.getMazeDistance(myPos,a.getPosition()),a) for a in whoChaseMe] # [(componnet index, dist)]
+        answer = [(self.getMazeDistance(myPos,a.getPosition()),a.getPosition()) for a in whoChaseMe] # [(componnet index, dist)]
         answer.sort() # smallest dist first, e.g. [(6,1),(12,3)]
         return answer
       else:
@@ -523,95 +555,115 @@ class KBAgent(ReflexCaptureAgent):
       foodGone = list(set(oldFoods).difference(set(newFoods)))
       return foodGone # if no missing then return None
                 
-    def bfs(self,gameState,endLoc): #bfs
-        
-      toBeVisited = util.Queue()
-      visited = []
+    def headTo(self, gameState, destination):
+      myPos = gameState.getAgentState(self.index)
+      actions = gameState.getLegalActions(self.index)
+      
+      minDist = 9999
+      dists = []
+      for action in actions:
+        successor = self.getSuccessor(gameState, action)
+        dist = self.getMazeDistance(successor.getAgentPosition(self.index), destination)
+        dists.append((dist, action))
 
-      # add the initial state and current empty path to the openlist
-      startLoc = gameState.getAgentPosition(self.index)
-      toBeVisited.push((startLoc, []))
+      closestActions = [action for (dist,action) in dists if dist == min(dists)[0]]
 
-      while toBeVisited:
-        # pop the most recently pushed item
-        currentItem = toBeVisited.pop()
-        currentLoc = currentItem[0]
-        pathFromStart = currentItem[1]
-        if currentLoc == endLoc:
-          return pathFromStart
-        # update visited list
-        visited.append(currentLoc)
-        # explore the open list of current node
-        walls = gameState.getWalls()
-        x, y = currentLoc
-        for dir, vec in Actions._directionsAsList:
-          dx, dy = vec
-          next_x = x + dx
-          if next_x < 0 or next_x == walls.width: continue
-          next_y = y + dy
-          if next_y < 0 or next_y == walls.height: continue
-          if not walls[next_x][next_y]: 
-            newLoc = (next_x,next_y)
-            nextDirection = dir
+      return random.choice(closestActions)  # TODO: randomly
+    
+    
+    # def bfs(self,gameState,endLoc): #bfs
+      
+    #   print("bfs starts:", time.time())
+    #   toBeVisited = util.Queue()
+    #   visited = []
 
-          if newLoc not in visited:
-            toBeVisited.push((newLoc,pathFromStart+[nextDirection]))
+    #   # add the initial state and current empty path to the openlist
+    #   startLoc = gameState.getAgentPosition(self.index)
+    #   toBeVisited.push((startLoc, []))
+
+    #   while toBeVisited:
+    #     # pop the most recently pushed item
+    #     currentItem = toBeVisited.pop()
+    #     currentLoc = currentItem[0]
+    #     pathFromStart = currentItem[1]
+    #     if currentLoc == endLoc:
+    #       return pathFromStart
+    #       print("bfs ends:", time.time())
+    #     # update visited list
+    #     visited.append(currentLoc)
+    #     # explore the open list of current node
+    #     walls = gameState.getWalls()
+    #     x, y = currentLoc
+    #     for dir, vec in Actions._directionsAsList:
+    #       dx, dy = vec
+    #       next_x = x + dx
+    #       if next_x < 0 or next_x == walls.width: continue
+    #       next_y = y + dy
+    #       if next_y < 0 or next_y == walls.height: continue
+    #       if not walls[next_x][next_y]: 
+    #         newLoc = (next_x,next_y)
+    #         nextDirection = dir
+
+    #       if newLoc not in visited:
+    #         toBeVisited.push((newLoc,pathFromStart+[nextDirection]))
+      
+      
 
     def closestFoodPos(self, gameState):
       myPos = gameState.getAgentPosition(self.index)
 
-      dists = [self.getMazeDistance(myPos,food) for food in self.getFood(gameState)]
-      closestFood = [food for food in self.getFood(gameState) if self.getMazeDistance(myPos,food) == min(dists)]
+      dists = [self.getMazeDistance(myPos,a) for a in self.getFood(gameState).asList()]
+      closestFood = [food for food in self.getFood(gameState).asList() if self.getMazeDistance(myPos,food) == min(dists)]
       return random.choice(closestFood)
       
-    def pathToClosestFood(self, gameState):
+    def actionToClosestFood(self, gameState):
       food = self.closestFoodPos(gameState)
-      path = self.bfs(gameState,food)
-      return path # return ["north", "south"]
+      return self.headTo(gameState,food)  
+    
     
     def escapeBack(self, gameState, back = True):
 
       # find the direction with the farest 
       actions = gameState.getLegalActions(self.index)
+      actions.remove(Directions.STOP)
 
       # check how many ghost approaching
       ghosts = self.whoChaseMeNearby(gameState)
-      if ghosts is None:
+      if ghosts is None or len(ghosts) == 0:
         return random.choice(actions)
       else:
         ghost = ghosts[0] # TODO how to handle multiple ghosts
       
       maxDist = 0
-      farestAction = []
+      dists = []
 
       for action in actions:
-        successor = gameState.getSuccessor(self.index, action)
-        dist = successor.getMazeDistance(self.getPosition(), ghost)
-        if dist >=  maxDist:
-          maxDist = dist
-          farestAction.append(action)
+        successor = self.getSuccessor(gameState, action)
+        dist = self.getMazeDistance(successor.getAgentPosition(self.index), ghost[1])
+        dists.append((dist, action))
       
+      farestActions = [action for (dist,action) in dists if dist == max(dists)[0]]
 
       # west/east vs north/south
-      if len(farestAction) == 1:
-        return farestAction[0]
+      if len(farestActions) == 1:
+        return farestActions[0]
       else:
         if back:  # escape back to 
-          if self.homeDirection in farestAction: 
+          if self.homeDirection in farestActions: 
             return self.homeDirection
-          elif self.foodDirection in farestAction:
-            farestAction.remove(self.foodDirection)
-            return random.choice(farestAction)
+          elif self.foodDirection in farestActions:
+            farestActions.remove(self.foodDirection)
+            return random.choice(farestActions)
           else: 
-            return random.choice(farestAction)
+            return random.choice(farestActions)
         else:  # escape to get more food
-          if self.foodDirection in farestAction: 
+          if self.foodDirection in farestActions: 
             return self.foodDirection
-          elif self.homeDirection in farestAction:
-            farestAction.remove(self.homeDirection)
-            return random.choice(farestAction)
+          elif self.homeDirection in farestActions:
+            farestActions.remove(self.homeDirection)
+            return random.choice(farestActions)
           else:
-            return random.choice(farestAction)
+            return random.choice(farestActions)
           
     def isDeadend(self, gameState, action):
       
