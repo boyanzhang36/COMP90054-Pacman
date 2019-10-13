@@ -231,11 +231,25 @@ class BaseAgent(ReflexCaptureAgent):
                         else:
                             best_action = [action]
                             bestDist = dist
-                return random.choice(best_action)
+                print("================111111============BEST ACTION", best_action)
+                KB = random.choice(best_action)
+                print(
+                    "================111111============ACTION TAKEN BY {} IS {} AT {}, is random".format(
+                        self.index,
+                        KB, myPos))
+                return KB
+
+                # return random.choice(best_action)
 
         if len(oppositeGhost) > 0 and oppositeGhost[0].scaredTimer <= 0:
             answer = self.actionOnDuty(gameState, oppositeGhost, myPos, myState, actions)
             if answer is not None:
+
+                print(
+                    "===============222222=============ACTION TAKEN BY {} IS {} AT {}".format(
+                        self.index,
+                        answer, myPos))
+
                 return answer
 
         if len(invadingPacman) > 0:  # the oppenent team has one or two invading pacman
@@ -245,7 +259,13 @@ class BaseAgent(ReflexCaptureAgent):
             if distToPacman < 15 and (not myState.isPacman) and (
                     distToPacman <= allyToPacman):  # my current state is ghost: defending our food
                 if myState.scaredTimer == 0:  # i am not scared, so i can eat the invading pacman
-                    return self.findClosestAction(gameState, invadingPacman[0].getPosition())
+
+                    KB = self.findClosestAction(gameState, invadingPacman[0].getPosition())
+                    print(
+                        "==============333333==============ACTION TAKEN BY {} IS {} AT {}, is random".format(
+                            self.index, KB, myPos))
+
+                    return KB
                 if myState.scaredTimer != 0:
                     if self.getMazeDistance(myPos, invadingPacman[
                         0].getPosition()) < 3: # i am scared and i am near the invading pacman
@@ -257,15 +277,31 @@ class BaseAgent(ReflexCaptureAgent):
                             dist = self.getMazeDistance(invadingPacman[0].getPosition(), pos2)
                             if self.getMazeDistance(pos2,myPos) <= 1 and dist > bestDist: # i dont need to take action, because i will not be eaten ,bu lang fei bushu
                                 bestAction = action
+                        print(
+                            "===============444444=============ACTION TAKEN BY {} IS {} AT {}".format(
+                                self.index,
+                                bestAction, myPos))
                         return bestAction
                     else:
                         # i am scared, but i am far away from the invading pacman
-                        return self.findClosestAction(gameState, invadingPacman[0].getPosition())
+                        KB = self.findClosestAction(gameState, invadingPacman[0].getPosition())
+                        print(
+                            "===================555555=========ACTION TAKEN BY {} IS {} AT {}, is random".format(
+                                self.index, KB, myPos))
+
+                        return KB
+                        # return self.findClosestAction(gameState, invadingPacman[0].getPosition())
 
         values = [self.evaluate(gameState, a) for a in actions]
         maxValue = max(values)
         bestActions = [a for a, v in zip(actions, values) if v == maxValue]
+        if len(bestActions) >=2:
+            if Directions.STOP in bestActions:
+                bestActions.remove(Directions.STOP)
+
         foodLeft = len(self.getFood(gameState).asList())
+
+
 
         if foodLeft <= 2 or ((gameState.data.timeleft) / 4 <= 22):
             if myState.isPacman:
@@ -278,19 +314,34 @@ class BaseAgent(ReflexCaptureAgent):
                     if dist < bestDist:
                         bestAction = action
                         bestDist = dist
+                print(
+                    "================666666============ACTION TAKEN BY {} IS {} AT {}".format(
+                        self.index,
+                        bestAction, myPos))
                 return bestAction
             if len(self.whereLostFood) > 0:
                 self.actionsGoLost = self.aaStar(gameState, self.whereLostFood[
                     0])  # find the eaten food , goal recognition , find the invading pacman
                 if len(self.actionsGoLost) > 0:
+                    print(
+                        "===============777777=============ACTION TAKEN BY {} IS {} AT {}".format(
+                            self.index,
+                            self.actionsGoLost[0], myPos))
+
                     return self.actionsGoLost[0]
                 if myPos == self.whereLostFood[0]:
                     self.whereLostFood = []
             else:
-                return random.choice(gameState.getLegalActions(self.index))
+                KB = random.choice(gameState.getLegalActions(self.index))
+                print(
+                    "================888888============ACTION TAKEN BY {} IS {} AT {}, is random".format(
+                        self.index, KB, myPos))
+
+                return KB
+                # return random.choice(gameState.getLegalActions(self.index))
 
         answer = random.choice(bestActions)
-        print("==========================================ACTION TAKEN by {} is {} at {}".format(self.index, answer,
+        print("====================999999======================ACTION TAKEN by {} is {} at {}, is random".format(self.index, answer,
                                                                                                 myPos))
         return answer
 
@@ -300,7 +351,7 @@ class BaseAgent(ReflexCaptureAgent):
     def findClosestAction(self, gameState, pos):
 
         actions = gameState.getLegalActions(self.index)
-        dists = [9999]
+        dists = []
         for action in actions:
             successor = self.getSuccessor(gameState, action)
             dist = self.getMazeDistance(successor.getAgentPosition(self.index), pos)
@@ -315,7 +366,7 @@ class BaseAgent(ReflexCaptureAgent):
     def findFarthestAction(self, gameState, pos):
 
         actions = gameState.getLegalActions(self.index)
-        dists = [0]
+        dists = []
 
         for action in actions:
             successor = self.getSuccessor(gameState, action)
@@ -613,7 +664,7 @@ class PrimaryAgent(BaseAgent):
 
         weights = BaseAgent.getWeights(self, gameState, action)
 
-        weights['distanceToCap'] = -10000
+        # weights['distanceToCap'] = -10000
 
         return weights
 
