@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "/Users/charcoalab_2016/anaconda3/envs/tensorflow/bin/python",
+    "python.pythonPath": "/anaconda3/envs/pacman/bin/python",
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": true,
     "python.linting.enabled": true
